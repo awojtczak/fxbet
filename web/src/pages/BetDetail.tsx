@@ -82,7 +82,13 @@ export default function BetDetail() {
       <ErrorBox error={remove.error} />
 
       <div className="kpis">
-        <Kpi label="Your position now" value={fmtPln(s.actual)} hint={s.usd_remaining > 0.01 ? `${fmtUsd(s.usd_remaining)} still in USD` : 'fully converted'} emph />
+        <Kpi label="Your position now" value={fmtPln(s.actual)} hint={
+            s.usd_remaining <= 0.01
+              ? 'fully converted'
+              : s.converted_usd >= bet.amount_usd * 0.999
+                ? `principal converted; ${fmtUsd(s.usd_remaining)} USD interest left`
+                : `${fmtUsd(s.usd_remaining)} still in USD`
+          } emph />
         <Kpi
           label="Edge vs converting on day 0"
           value={fmtSignedPln(s.edge_vs_day0_pln)}
