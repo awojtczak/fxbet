@@ -134,3 +134,49 @@ async fn conversion_outside_bet_window_is_rejected() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn retrospective_bet_records_conversions_and_skips_subjective_calibration() {
+    let app = app().await;
+    let mut analysis = analysis_body();
+    analysis["start_date"] = json!("2026-07-01");
+    analysis["horizon_days"] = json!(60);
+    analysis["target"] = json!(3.86);
+    analysis["subjective_prob"] = json!(0.9);
+    let body = json!({
+        "title": "what I did in July",
+        "retrospective": true,
+        "analysis": analysis,
+        "conversions": [
+            { "date": "2026-07-15", "usd_amount": 4000, "rate": 3.84 },
+            { "date": "2026-08-25", "usd_amount": 6000, "rate": 3.88 }
+        ]
+    });
+    let (status, created) = call(&app, "POST", "/api/bets", Some(body)).await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["bet"]["retrospective"], true);
+    assert_eq!(created["conversions"].as_array().unwrap().len(), 2);
+    assert_eq!(created["tracking"]["summary"]["converted_usd"].as_f64().unwrap(), 10000.0);
+
+    let (_, cal) = call(&app, "GET", "/api/calibration", None).await;
+    assert_eq!(cal["calibration"]["resolved"], 1);
+    assert!(cal["calibration"]["brier_subjective"].is_null());
+    assert!(cal["calibration"]["brier_model"].is_number());
+}
+
+#[tokio::test]
+async fn invalid_conversion_rejects_whole_bet() {
+    let app = app().await;
+    let mut analysis = analysis_body();
+    analysis["start_date"] = json!("2026-07-01");
+    let body = json!({
+        "title": "bad",
+        "retrospective": true,
+        "analysis": analysis,
+        "conversions": [{ "date": "2026-06-01", "usd_amount": 100, "rate": 3.8 }]
+    });
+    let (status, _) = call(&app, "POST", "/api/bets", Some(body)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (_, bets) = call(&app, "GET", "/api/bets", None).await;
+    assert_eq!(bets.as_array().unwrap().len(), 0);
+}

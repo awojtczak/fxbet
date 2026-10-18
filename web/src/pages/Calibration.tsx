@@ -32,7 +32,10 @@ export default function Calibration() {
       <div className="page-head">
         <div>
           <h1>Calibration</h1>
-          <p>How right were you? Resolved bets only: target touched before the deadline, or deadline passed.</p>
+          <p>
+            How right were you? Resolved bets only: target touched before the deadline, or deadline passed. Probabilities on retrospective
+            bets are hindsight, so they are not scored.
+          </p>
         </div>
       </div>
       <ErrorBox error={q.error} />
@@ -127,9 +130,14 @@ export default function Calibration() {
                 <tbody>
                   {points.map((p) => (
                     <tr key={p.bet_id} className="link" onClick={() => navigate(`/bets/${p.bet_id}`)}>
-                      <td>{p.title}</td>
+                      <td>
+                        {p.title}
+                        {p.retrospective && <span className="muted"> · retro</span>}
+                      </td>
                       <td>{fmtDate(p.start_date)}</td>
-                      <td className="num">{fmtPct(p.subjective_prob, 0)}</td>
+                      <td className="num" title={p.retrospective ? 'hindsight — not scored' : undefined}>
+                        {p.retrospective ? <s className="muted">{fmtPct(p.subjective_prob, 0)}</s> : fmtPct(p.subjective_prob, 0)}
+                      </td>
                       <td className="num">{fmtPct(p.model_prob, 0)}</td>
                       <td>
                         <span className={`badge ${p.target_hit ? 'hit' : 'missed'}`}>{p.target_hit ? 'hit' : 'missed'}</span>

@@ -20,9 +20,14 @@ export default function Bets() {
           <h1>Bets</h1>
           <p>Every decision you recorded, valued today against what you could have done instead.</p>
         </div>
-        <Link to="/analyze">
-          <button className="primary">New analysis</button>
-        </Link>
+        <div className="row" style={{ flex: 'none' }}>
+          <Link to="/bets/past">
+            <button>Record a past decision</button>
+          </Link>
+          <Link to="/analyze">
+            <button className="primary">New analysis</button>
+          </Link>
+        </div>
       </div>
       <ErrorBox error={bets.error} />
       <div className="kpis">
@@ -34,7 +39,8 @@ export default function Bets() {
       <Card title="All bets">
         {list.length === 0 ? (
           <div className="empty">
-            No bets yet. Run the <Link to="/analyze">Analyzer</Link> and press “Place this bet”.
+            No bets yet. Run the <Link to="/analyze">Analyzer</Link> and press “Place this bet”, or{' '}
+            <Link to="/bets/past">record a decision you already made</Link>.
           </div>
         ) : (
           <div className="table-wrap">
@@ -62,7 +68,10 @@ export default function Bets() {
                     <td>
                       <span className={`badge ${status}`}>{status}</span>
                     </td>
-                    <td>{bet.title}</td>
+                    <td>
+                      {bet.title}
+                      {bet.retrospective && <span className="muted"> · retro</span>}
+                    </td>
                     <td>{fmtDate(bet.start_date)}</td>
                     <td>{fmtDate(bet.deadline)}</td>
                     <td className="num">{fmtUsd(bet.amount_usd)}</td>

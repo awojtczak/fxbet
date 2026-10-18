@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use chrono::{NaiveDate, Utc};
 use serde::Serialize;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use sqlx::{FromRow, SqlitePool};
+use sqlx::{FromRow, SqliteConnection, SqlitePool};
 
 use crate::domain::fx::{Currency, Fixing, RateSeries};
 use crate::domain::savings::{Compounding, RateSchedule, SavingsTerms};
@@ -264,10 +264,11 @@ pub struct Bet {
     pub eur_account_id: i64,
     #[sqlx(json)]
     pub snapshot: serde_json::Value,
+    pub retrospective: bool,
 }
 
 const BET_COLUMNS: &str = "id, created_at, title, notes, amount_usd, start_date, deadline, spot_usd_pln, spot_usd_eur, \
-    target_rate, spread_pct, subjective_prob, model_prob, pln_account_id, usd_account_id, eur_account_id, snapshot";
+    target_rate, spread_pct, subjective_prob, model_prob, pln_account_id, usd_account_id, eur_account_id, snapshot, retrospective";
 
 #[derive(Debug, Clone)]
 pub struct NewBet {
@@ -286,13 +287,15 @@ pub struct NewBet {
     pub usd_account_id: i64,
     pub eur_account_id: i64,
     pub snapshot: serde_json::Value,
+    pub retrospective: bool,
 }
 
-pub async fn insert_bet(pool: &SqlitePool, b: &NewBet) -> Result<i64> {
+/// Takes a connection so callers can insert a bet and its conversions in one transaction.
+pub async fn insert_bet(conn: &mut SqliteConnection, b: &NewBet) -> Result<i64> {
     let id = sqlx::query(
         "INSERT INTO bets (created_at, title, notes, amount_usd, start_date, deadline, spot_usd_pln, spot_usd_eur, target_rate,
-            spread_pct, subjective_prob, model_prob, pln_account_id, usd_account_id, eur_account_id, snapshot)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            spread_pct, subjective_prob, model_prob, pln_account_id, usd_account_id, eur_account_id, snapshot, retrospective)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(Utc::now().to_rfc3339())
     .bind(&b.title)
@@ -310,7 +313,8 @@ pub async fn insert_bet(pool: &SqlitePool, b: &NewBet) -> Result<i64> {
     .bind(b.usd_account_id)
     .bind(b.eur_account_id)
     .bind(b.snapshot.to_string())
-    .execute(pool)
+    .bind(b.retrospective)
+    .execute(&mut *conn)
     .await?
     .last_insert_rowid();
     Ok(id)
@@ -371,14 +375,14 @@ pub async fn list_all_conversions(pool: &SqlitePool) -> Result<HashMap<i64, Vec<
     Ok(map)
 }
 
-pub async fn insert_conversion(pool: &SqlitePool, bet_id: i64, date: NaiveDate, usd_amount: f64, rate: f64, note: &str) -> Result<i64> {
+pub async fn insert_conversion(conn: &mut SqliteConnection, bet_id: i64, date: NaiveDate, usd_amount: f64, rate: f64, note: &str) -> Result<i64> {
     Ok(sqlx::query("INSERT INTO conversions (bet_id, date, usd_amount, rate, note) VALUES (?, ?, ?, ?, ?)")
         .bind(bet_id)
         .bind(date)
         .bind(usd_amount)
         .bind(rate)
         .bind(note)
-        .execute(pool)
+        .execute(&mut *conn)
         .await?
         .last_insert_rowid())
 }

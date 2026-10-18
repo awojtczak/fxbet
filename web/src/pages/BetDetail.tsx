@@ -59,6 +59,11 @@ export default function BetDetail() {
         <div>
           <h1>
             {bet.title} <span className={`badge ${d.status}`}>{d.status}</span>
+            {bet.retrospective && (
+              <span className="badge" title="Recorded after the fact; your probability is excluded from calibration">
+                retrospective
+              </span>
+            )}
           </h1>
           <p>
             {fmtUsd(bet.amount_usd)} at {fmtRate(bet.spot_usd_pln)} on {fmtDate(bet.start_date)} · target {fmtRate(bet.target_rate)} by{' '}
@@ -116,7 +121,14 @@ export default function BetDetail() {
         >
           <ConversionDaysChart d={d} />
         </Card>
-        <Card title="At the time of the bet" sub="Snapshot of the analysis when you placed it.">
+        <Card
+          title="At the time of the bet"
+          sub={
+            bet.retrospective
+              ? `Reconstructed as of ${fmtDate(bet.start_date)} from data available that day (volatility from the year before).`
+              : 'Snapshot of the analysis when you placed it.'
+          }
+        >
           <Snapshot d={d} />
         </Card>
       </div>
