@@ -195,6 +195,7 @@ export interface Bet {
   pln_account_id: number
   usd_account_id: number
   eur_account_id: number
+  retrospective: boolean
   snapshot: {
     request: AnalyzeRequest
     inputs: ResolvedInputs
@@ -308,7 +309,15 @@ export interface CalibrationResponse {
     model_prob: number
     target_hit: boolean
     edge_vs_day0_pln: number
+    retrospective: boolean
   }[]
+}
+
+export interface NewConversion {
+  date: string
+  usd_amount: number
+  rate: number
+  note?: string
 }
 
 export class ApiError extends Error {
@@ -359,11 +368,15 @@ export const api = {
 
   bets: () => request<BetListItem[]>('GET', '/api/bets'),
   bet: (id: number) => request<BetDetail>('GET', `/api/bets/${id}`),
-  createBet: (title: string, notes: string, analysis: AnalyzeRequest) =>
-    request<BetDetail>('POST', '/api/bets', { title, notes, analysis }),
+  createBet: (
+    title: string,
+    notes: string,
+    analysis: AnalyzeRequest,
+    extra: { retrospective?: boolean; conversions?: NewConversion[] } = {},
+  ) => request<BetDetail>('POST', '/api/bets', { title, notes, analysis, ...extra }),
   updateBet: (id: number, title: string, notes: string) => request<BetDetail>('PATCH', `/api/bets/${id}`, { title, notes }),
   deleteBet: (id: number) => request<void>('DELETE', `/api/bets/${id}`),
-  addConversion: (id: number, c: { date: string; usd_amount: number; rate: number; note?: string }) =>
+  addConversion: (id: number, c: NewConversion) =>
     request<BetDetail>('POST', `/api/bets/${id}/conversions`, c),
   deleteConversion: (id: number, cid: number) => request<BetDetail>('DELETE', `/api/bets/${id}/conversions/${cid}`),
   calibration: () => request<CalibrationResponse>('GET', '/api/calibration'),

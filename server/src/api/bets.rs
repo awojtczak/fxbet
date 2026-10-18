@@ -22,6 +22,12 @@ pub struct CreateBet {
     #[serde(default)]
     notes: String,
     analysis: AnalyzeRequest,
+    /// Recorded after the fact; its subjective probability is excluded from calibration.
+    #[serde(default)]
+    retrospective: bool,
+    /// Exchanges already made, recorded together with the bet (typical for retrospective bets).
+    #[serde(default)]
+    conversions: Vec<NewConversion>,
 }
 
 #[derive(Serialize)]
@@ -60,7 +66,13 @@ pub async fn create(State(st): State<AppState>, Json(body): Json<CreateBet>) -> 
     let req = AnalyzeRequest { pln: None, usd: None, eur: None, ..req };
     let series = db::load_series(&st.pool).await?;
     let accounts = db::list_accounts(&st.pool).await?;
-    let (input, inputs) = build(&req, &series, &accounts, st.clock.today())?;
+    let today = st.clock.today();
+    let (input, inputs) = build(&req, &series, &accounts, today)?;
+    let conversions = body
+        .conversions
+        .iter()
+        .map(|c| c.validate(inputs.start_date, today))
+        .collect::<AppResult<Vec<_>>>()?;
     let result = tokio::task::spawn_blocking(move || analysis::analyze(&input))
         .await
         .map_err(|e| AppError::Internal(e.into()))?;
@@ -80,8 +92,9 @@ pub async fn create(State(st): State<AppState>, Json(body): Json<CreateBet>) -> 
             "p95": result.monte_carlo.p95,
         },
     });
+    let mut tx = st.pool.begin().await?;
     let id = db::insert_bet(
-        &st.pool,
+        &mut tx,
         &NewBet {
             title,
             notes: body.notes,
@@ -98,10 +111,22 @@ pub async fn create(State(st): State<AppState>, Json(body): Json<CreateBet>) -> 
             usd_account_id: usd_id,
             eur_account_id: eur_id,
             snapshot,
+            retrospective: body.retrospective,
         },
     )
     .await?;
-    tracing::info!(bet = id, amount_usd = req.amount_usd, target = req.target, "bet created");
+    for c in &conversions {
+        db::insert_conversion(&mut tx, id, c.date, c.usd_amount, c.rate, &c.note).await?;
+    }
+    tx.commit().await?;
+    tracing::info!(
+        bet = id,
+        amount_usd = req.amount_usd,
+        target = req.target,
+        retrospective = body.retrospective,
+        conversions = conversions.len(),
+        "bet created"
+    );
     Ok((StatusCode::CREATED, Json(load_detail(&st, id).await?)))
 }
 
@@ -151,22 +176,29 @@ pub struct NewConversion {
     note: String,
 }
 
+impl NewConversion {
+    fn validate(&self, start: NaiveDate, today: NaiveDate) -> AppResult<NewConversion> {
+        if self.date < start || self.date > today {
+            return Err(bad(format!("conversion on {} must be between the bet start ({start}) and today", self.date)));
+        }
+        let usd_amount = positive("usd_amount", self.usd_amount)?;
+        let rate = positive("rate", self.rate)?;
+        if !(0.5..=20.0).contains(&rate) {
+            return Err(bad("rate looks wrong: expected PLN per 1 USD"));
+        }
+        Ok(NewConversion { date: self.date, usd_amount, rate, note: self.note.trim().to_string() })
+    }
+}
+
 pub async fn add_conversion(
     State(st): State<AppState>,
     Path(id): Path<i64>,
     Json(body): Json<NewConversion>,
 ) -> AppResult<(StatusCode, Json<BetDetail>)> {
     let bet = db::get_bet(&st.pool, id).await?;
-    if body.date < bet.start_date || body.date > st.clock.today() {
-        return Err(bad("conversion date must be between the bet start and today"));
-    }
-    let amount = positive("usd_amount", body.usd_amount)?;
-    let rate = positive("rate", body.rate)?;
-    if !(0.5..=20.0).contains(&rate) {
-        return Err(bad("rate looks wrong: expected PLN per 1 USD"));
-    }
-    db::insert_conversion(&st.pool, id, body.date, amount, rate, body.note.trim()).await?;
-    tracing::info!(bet = id, usd_amount = amount, rate, date = %body.date, "conversion recorded");
+    let c = body.validate(bet.start_date, st.clock.today())?;
+    db::insert_conversion(&mut *st.pool.acquire().await?, id, c.date, c.usd_amount, c.rate, &c.note).await?;
+    tracing::info!(bet = id, usd_amount = c.usd_amount, rate = c.rate, date = %c.date, "conversion recorded");
     Ok((StatusCode::CREATED, Json(load_detail(&st, id).await?)))
 }
 
@@ -190,6 +222,7 @@ pub struct CalibrationPoint {
     model_prob: f64,
     target_hit: bool,
     edge_vs_day0_pln: f64,
+    retrospective: bool,
 }
 
 pub async fn calibration(State(st): State<AppState>) -> AppResult<Json<CalibrationResponse>> {
@@ -209,13 +242,15 @@ pub async fn calibration(State(st): State<AppState>) -> AppResult<Json<Calibrati
                 model_prob: bet.model_prob,
                 target_hit: t.outcome.target_hit,
                 edge_vs_day0_pln: t.summary.edge_vs_day0_pln,
+                retrospective: bet.retrospective,
             });
         }
     }
     let resolved: Vec<ResolvedBet> = points
         .iter()
         .map(|p| ResolvedBet {
-            subjective_prob: p.subjective_prob,
+            // A probability written down after the outcome is known isn't a forecast.
+            subjective_prob: if p.retrospective { None } else { p.subjective_prob },
             model_prob: p.model_prob,
             target_hit: p.target_hit,
             edge_vs_day0_pln: p.edge_vs_day0_pln,

@@ -8,6 +8,7 @@ import BetDetail from './pages/BetDetail'
 import Bets from './pages/Bets'
 import Calibration from './pages/Calibration'
 import Dashboard from './pages/Dashboard'
+import PastBet from './pages/PastBet'
 
 export default function App() {
   const latest = useQuery({ queryKey: ['latest'], queryFn: api.latest })
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/analyze" element={<Analyzer />} />
           <Route path="/bets" element={<Bets />} />
+          <Route path="/bets/past" element={<PastBet />} />
           <Route path="/bets/:id" element={<BetDetail />} />
           <Route path="/calibration" element={<Calibration />} />
           <Route path="/accounts" element={<Accounts />} />
