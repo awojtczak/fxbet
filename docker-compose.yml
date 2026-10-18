@@ -1,0 +1,17 @@
+services:
+  fxbet:
+    build: .
+    image: fxbet:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - fxbet-data:/data
+    environment:
+      # Optional overrides; defaults shown.
+      FXBET_FX_SYNC_HOURS: "6"
+      FXBET_FX_HISTORY_START: "2016-01-01"
+      # FXBET_FX_PROVIDER_URL: "https://api.frankfurter.dev/v1"
+
+volumes:
+  fxbet-data:
