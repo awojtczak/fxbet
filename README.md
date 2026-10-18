@@ -21,6 +21,7 @@ Rust (axum + SQLite) backend, React (Vite + Recharts) frontend, one Docker conta
 | How bad can waiting go? | Outcome percentile curve: limit order at target, convert at deadline if missed |
 | Which targets/days are worth it? | Sensitivity heatmap (target × day hit) |
 | Did my bet work? What if I'd converted on any other day, kept USD, or gone via EUR? | Bet page: five paths over time + value-by-conversion-day chart |
+| How did a decision I made *before* using this app work out? | Bets → **Record a past decision**: date, amount, target, deadline and your real conversions in one form; replayed like any other bet |
 | Is my gut better than the model? | Calibration: Brier scores and reliability diagram, you vs model |
 
 ### Model notes
@@ -36,6 +37,9 @@ Rust (axum + SQLite) backend, React (Vite + Recharts) frontend, one Docker conta
   drift defaults to 0 (no directional view). Override both. Your probability re-weights the simulated "hit" vs
   "miss" outcomes, so the cost of a miss stays priced in.
 - A target is "hit" if any daily fixing in the window reaches it; the limit-order path fills at the target.
+- Past decisions are stored as *retrospective* bets. The model probability is reconstructed from data available
+  on the start date; your own probability, written with hindsight, is shown but excluded from calibration.
+  Enter the savings rates that applied back then as dated rates under **Accounts**.
 
 ## Run it (self-host)
 
