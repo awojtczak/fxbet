@@ -7,8 +7,7 @@ edition = "2024"
 anyhow = "1"
 axum = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
-rand = "0.9"
-rand_distr = "0.5"
+fxbet-core = { path = "../core", features = ["sqlx"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -20,5 +19,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 [dev-dependencies]
-approx = "0.5"
 tower = { version = "0.5", features = ["util"] }

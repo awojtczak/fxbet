@@ -3,3 +3,6 @@
 **/dist
 data
 .git
+**/dist-pages
+**/pkg
+wasm

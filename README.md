@@ -41,6 +41,13 @@ Rust (axum + SQLite) backend, React (Vite + Recharts) frontend, one Docker conta
   on the start date; your own probability, written with hindsight, is shown but excluded from calibration.
   Enter the savings rates that applied back then as dated rates under **Accounts**.
 
+## Try it in the browser
+
+https://awojtczak.github.io/fxbet/ runs the whole app without a server: the Rust API is compiled to
+WebAssembly, ECB rates are fetched from Frankfurter by the browser, and accounts and bets are saved in that
+browser's localStorage, so they don't sync between devices and are lost if site data is cleared. Self-host
+for a shared, durable database.
+
 ## Run it (self-host)
 
 ```bash
@@ -85,16 +92,23 @@ cd web && npm install && npm run dev
 ```
 
 ```bash
-cd server && cargo test
+# browser-only (GitHub Pages) build; needs wasm-pack and the wasm32-unknown-unknown target
+cd web && npm run build:pages && npx vite preview --mode pages --outDir dist-pages   # http://localhost:4173/fxbet/
+```
+
+```bash
+for c in core server wasm; do (cd $c && cargo test); done
 ```
 
 ### Layout
 
 ```
-server/src/domain/   pure model — savings growth, GBM/stats, analysis, bet replay, calibration (unit-tested)
-server/src/api/      axum handlers, request validation, router tests
+core/src/domain/     pure model — savings growth, GBM/stats, analysis, bet replay, calibration (unit-tested)
+core/src/service/    request validation and response shaping per endpoint, shared by server and wasm
+server/src/api/      axum handlers, router tests
 server/src/db.rs     SQLite repository (migrations in server/migrations)
 server/src/fxsync.rs ECB rate sync
+wasm/                the /api router for the browser build, records in localStorage
 web/src/pages/       Dashboard, Analyzer, Bets, BetDetail, Calibration, Accounts
 ```
 

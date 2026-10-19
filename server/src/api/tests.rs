@@ -13,7 +13,7 @@ use super::{AppState, router};
 use crate::clock::Clock;
 use crate::config::Config;
 use crate::db;
-use crate::domain::fx::Fixing;
+use fxbet_core::domain::fx::Fixing;
 use crate::fxsync::FxProvider;
 
 struct FixedClock(NaiveDate);

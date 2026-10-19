@@ -16,7 +16,7 @@ export default function App() {
     <div className="shell">
       <nav className="nav">
         <div className="brand">
-          <img src="/favicon.svg" alt="" />
+          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" />
           FX Bet
         </div>
         <NavLink to="/" end>
@@ -26,12 +26,17 @@ export default function App() {
         <NavLink to="/bets">Bets</NavLink>
         <NavLink to="/calibration">Calibration</NavLink>
         <NavLink to="/accounts">Accounts</NavLink>
-        {latest.data && (
-          <div className="ticker">
-            USD/PLN · ECB {fmtShortDate(latest.data.date)}
-            <b>{fmtRate(latest.data.usd_pln)}</b>
-          </div>
-        )}
+        <div className="nav-foot">
+          {latest.data && (
+            <div className="ticker">
+              USD/PLN · ECB {fmtShortDate(latest.data.date)}
+              <b>{fmtRate(latest.data.usd_pln)}</b>
+            </div>
+          )}
+          {import.meta.env.VITE_FXBET_BACKEND === 'browser' && (
+            <div className="storage-note">Bets and accounts are saved in this browser only.</div>
+          )}
+        </div>
       </nav>
       <main>
         <Routes>

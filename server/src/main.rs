@@ -2,7 +2,6 @@ mod api;
 mod clock;
 mod config;
 mod db;
-mod domain;
 mod error;
 mod fxsync;
 

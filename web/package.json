@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:pages": "npm run wasm && tsc -b && vite build --mode pages --outDir dist-pages && cp dist-pages/index.html dist-pages/404.html",
+    "dev:pages": "npm run wasm && vite --mode pages",
+    "wasm": "wasm-pack build ../wasm --target web --release --out-dir pkg"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.4",

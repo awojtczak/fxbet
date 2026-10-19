@@ -33,15 +33,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
-name = "approx"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cab112f0a86d568ea0e627cc1d6be74a1e9cd55214684db5561995f6dad897c6"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "atoi"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -479,11 +470,9 @@ name = "fxbet"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "approx",
  "axum",
  "chrono",
- "rand 0.9.5",
- "rand_distr",
+ "fxbet-core",
  "reqwest",
  "serde",
  "serde_json",
@@ -494,6 +483,19 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "fxbet-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "rand 0.9.5",
+ "rand_distr",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror",
 ]
 
 [[package]]

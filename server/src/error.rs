@@ -18,6 +18,19 @@ pub enum AppError {
     Internal(#[from] anyhow::Error),
 }
 
+impl From<fxbet_core::Error> for AppError {
+    fn from(e: fxbet_core::Error) -> Self {
+        use fxbet_core::Error as E;
+        match e {
+            E::NotFound(what) => AppError::NotFound(what),
+            E::BadRequest(m) => AppError::BadRequest(m),
+            E::Conflict(m) => AppError::Conflict(m),
+            E::Unavailable(m) => AppError::Unavailable(m),
+            E::Internal(m) => AppError::Internal(anyhow::anyhow!(m)),
+        }
+    }
+}
+
 impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
         AppError::Internal(e.into())
@@ -45,7 +58,3 @@ impl IntoResponse for AppError {
 }
 
 pub type AppResult<T> = Result<T, AppError>;
-
-pub fn bad(msg: impl Into<String>) -> AppError {
-    AppError::BadRequest(msg.into())
-}
