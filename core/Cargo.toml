@@ -1,0 +1,22 @@
+[package]
+name = "fxbet-core"
+version = "0.1.0"
+edition = "2024"
+
+# Financial model and request handling shared by the server (SQLite) and the browser build (WASM).
+# No I/O: callers load records, pass them in, and persist what comes back.
+
+[features]
+sqlx = ["dep:sqlx"]
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
+rand = { version = "0.9", default-features = false, features = ["std", "std_rng"] }
+rand_distr = { version = "0.5", default-features = false, features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = ["macros", "chrono", "json"], optional = true }
+thiserror = "2"
+
+[dev-dependencies]
+approx = "0.5"

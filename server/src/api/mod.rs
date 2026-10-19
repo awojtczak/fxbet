@@ -13,7 +13,7 @@ use sqlx::SqlitePool;
 
 use crate::clock::Clock;
 use crate::config::Config;
-use crate::error::{AppResult, bad};
+use crate::error::AppError;
 use crate::fxsync::FxProvider;
 
 #[derive(Clone)]
@@ -22,6 +22,11 @@ pub struct AppState {
     pub clock: Arc<dyn Clock>,
     pub provider: Arc<FxProvider>,
     pub config: Arc<Config>,
+}
+
+/// Runs CPU-bound model code (Monte Carlo) off the async runtime.
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> fxbet_core::Result<T> + Send + 'static) -> Result<T, AppError> {
+    Ok(tokio::task::spawn_blocking(f).await.map_err(|e| AppError::Internal(e.into()))??)
 }
 
 pub fn router(state: AppState) -> Router {
@@ -42,23 +47,4 @@ pub fn router(state: AppState) -> Router {
         .route("/api/bets/{id}/conversions/{conversion_id}", delete(bets::remove_conversion))
         .route("/api/calibration", get(bets::calibration))
         .with_state(state)
-}
-
-// ---------- boundary validation helpers ----------
-
-fn positive(name: &str, v: f64) -> AppResult<f64> {
-    if v.is_finite() && v > 0.0 { Ok(v) } else { Err(bad(format!("{name} must be a positive number"))) }
-}
-
-fn pct(name: &str, v: f64) -> AppResult<f64> {
-    if v.is_finite() && (0.0..100.0).contains(&v) { Ok(v) } else { Err(bad(format!("{name} must be in [0, 100)"))) }
-}
-
-fn prob(name: &str, v: f64) -> AppResult<f64> {
-    if v.is_finite() && (0.0..=1.0).contains(&v) { Ok(v) } else { Err(bad(format!("{name} must be in [0, 1]"))) }
-}
-
-fn non_empty(name: &str, v: &str) -> AppResult<String> {
-    let t = v.trim();
-    if t.is_empty() || t.len() > 200 { Err(bad(format!("{name} must be 1-200 characters"))) } else { Ok(t.to_string()) }
 }

@@ -8,7 +8,8 @@ COPY web/ ./
 RUN npm run build
 
 FROM rust:1-slim-bookworm AS server
-WORKDIR /server
+WORKDIR /src/server
+COPY core/ /src/core/
 COPY server/Cargo.toml server/Cargo.lock ./
 # Build dependencies once so source edits don't recompile the world.
 RUN mkdir src && echo 'fn main() {}' > src/main.rs && cargo build --release && rm -rf src
@@ -21,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && useradd --system --uid 10001 --home /app fxbet \
     && mkdir -p /data && chown fxbet /data
 WORKDIR /app
-COPY --from=server /server/target/release/fxbet /app/fxbet
+COPY --from=server /src/server/target/release/fxbet /app/fxbet
 COPY --from=web /web/dist /app/web
 ENV FXBET_BIND=0.0.0.0:8080 \
     FXBET_DATABASE_URL=sqlite:///data/fxbet.db?mode=rwc \

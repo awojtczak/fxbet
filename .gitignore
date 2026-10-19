@@ -5,3 +5,8 @@ web/dist/
 *.db
 *.db-*
 .DS_Store
+core/target/
+core/Cargo.lock
+wasm/target/
+wasm/pkg/
+web/dist-pages/

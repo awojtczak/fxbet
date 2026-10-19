@@ -23,7 +23,7 @@ impl Config {
             bind: var_or("FXBET_BIND", "0.0.0.0:8080").parse().context("FXBET_BIND")?,
             database_url: var_or("FXBET_DATABASE_URL", "sqlite://data/fxbet.db?mode=rwc"),
             static_dir: var_or("FXBET_STATIC_DIR", "../web/dist").into(),
-            fx_provider_url: var_or("FXBET_FX_PROVIDER_URL", "https://api.frankfurter.dev/v1"),
+            fx_provider_url: var_or("FXBET_FX_PROVIDER_URL", fxbet_core::frankfurter::DEFAULT_BASE_URL),
             fx_sync_interval_hours: var_or("FXBET_FX_SYNC_HOURS", "6").parse().context("FXBET_FX_SYNC_HOURS")?,
             fx_history_start: var_or("FXBET_FX_HISTORY_START", "2016-01-01").parse().context("FXBET_FX_HISTORY_START")?,
         })

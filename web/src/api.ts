@@ -328,7 +328,18 @@ export class ApiError extends Error {
   }
 }
 
+/** Pages build: no server, requests go to the in-browser backend. */
+const BROWSER_BACKEND = import.meta.env.VITE_FXBET_BACKEND === 'browser'
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  if (BROWSER_BACKEND) {
+    const { localRequest } = await import('./local/backend')
+    const reply = await localRequest(method, path, body)
+    if (reply.status >= 400) {
+      throw new ApiError(reply.status, (reply.body as { error?: string } | null)?.error ?? `error ${reply.status}`)
+    }
+    return (reply.status === 204 ? undefined : reply.body) as T
+  }
   const res = await fetch(path, {
     method,
     headers: body === undefined ? undefined : { 'content-type': 'application/json' },

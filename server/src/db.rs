@@ -6,12 +6,13 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use chrono::{NaiveDate, Utc};
-use serde::Serialize;
+use fxbet_core::domain::fx::{Currency, Fixing, RateSeries};
+use fxbet_core::domain::savings::Compounding;
+pub use fxbet_core::model::{Account, AccountRate, Bet, ConversionRecord, NewAccount, NewBet};
+use fxbet_core::model::{DEFAULT_ACCOUNTS, DEFAULT_TAX_PCT};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{FromRow, SqliteConnection, SqlitePool};
 
-use crate::domain::fx::{Currency, Fixing, RateSeries};
-use crate::domain::savings::{Compounding, RateSchedule, SavingsTerms};
 use crate::error::{AppError, AppResult};
 
 pub async fn connect(url: &str) -> Result<SqlitePool> {
@@ -35,13 +36,8 @@ pub async fn seed_default_accounts(pool: &SqlitePool, today: NaiveDate) -> Resul
     if count > 0 {
         return Ok(());
     }
-    let defaults = [
-        ("PLN savings (daily capitalization)", Currency::Pln, Compounding::Daily, 5.0),
-        ("USD savings (variable)", Currency::Usd, Compounding::Monthly, 3.0),
-        ("EUR savings (variable)", Currency::Eur, Compounding::Monthly, 2.0),
-    ];
-    for (name, ccy, comp, rate) in defaults {
-        let id = insert_account(pool, &NewAccount { name: name.into(), currency: ccy, compounding: comp, tax_pct: 19.0 }).await?;
+    for (name, ccy, comp, rate) in DEFAULT_ACCOUNTS {
+        let id = insert_account(pool, &NewAccount { name: name.into(), currency: ccy, compounding: comp, tax_pct: DEFAULT_TAX_PCT }).await?;
         upsert_account_rate(pool, id, today, rate).await?;
     }
     tracing::info!(accounts = 3, "seeded default accounts");
@@ -82,44 +78,6 @@ pub async fn latest_fixing_date(pool: &SqlitePool) -> Result<Option<NaiveDate>> 
 
 // ---------- Accounts ----------
 
-#[derive(Debug, Clone, Serialize)]
-pub struct Account {
-    pub id: i64,
-    pub name: String,
-    pub currency: Currency,
-    pub compounding: Compounding,
-    pub tax_pct: f64,
-    pub current_rate_pct: f64,
-    pub rates: Vec<AccountRate>,
-}
-
-impl Account {
-    pub fn terms(&self) -> SavingsTerms {
-        let steps = self.rates.iter().map(|r| (r.effective_from, r.annual_rate_pct)).collect();
-        SavingsTerms {
-            schedule: RateSchedule::from_steps(steps).unwrap_or_else(|| RateSchedule::constant(0.0)),
-            compounding: self.compounding,
-            tax_pct: self.tax_pct,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, FromRow)]
-pub struct AccountRate {
-    pub id: i64,
-    pub account_id: i64,
-    pub effective_from: NaiveDate,
-    pub annual_rate_pct: f64,
-}
-
-#[derive(Debug, Clone)]
-pub struct NewAccount {
-    pub name: String,
-    pub currency: Currency,
-    pub compounding: Compounding,
-    pub tax_pct: f64,
-}
-
 #[derive(FromRow)]
 struct AccountRow {
     id: i64,
@@ -129,17 +87,10 @@ struct AccountRow {
     tax_pct: f64,
 }
 
-fn to_account(row: AccountRow, mut rates: Vec<AccountRate>) -> Result<Account> {
-    rates.sort_by_key(|r| r.effective_from);
-    Ok(Account {
-        id: row.id,
-        currency: Currency::parse(&row.currency).with_context(|| format!("account={} bad currency", row.id))?,
-        compounding: Compounding::parse(&row.compounding).with_context(|| format!("account={} bad compounding", row.id))?,
-        current_rate_pct: rates.last().map(|r| r.annual_rate_pct).unwrap_or(0.0),
-        name: row.name,
-        tax_pct: row.tax_pct,
-        rates,
-    })
+fn to_account(row: AccountRow, rates: Vec<AccountRate>) -> Result<Account> {
+    let currency = Currency::parse(&row.currency).with_context(|| format!("account={} bad currency", row.id))?;
+    let compounding = Compounding::parse(&row.compounding).with_context(|| format!("account={} bad compounding", row.id))?;
+    Ok(Account::assemble(row.id, row.name, currency, compounding, row.tax_pct, rates))
 }
 
 pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<Account>> {
@@ -244,51 +195,8 @@ pub async fn delete_account_rate(pool: &SqlitePool, account_id: i64, rate_id: i6
 
 // ---------- Bets ----------
 
-#[derive(Debug, Clone, Serialize, FromRow)]
-pub struct Bet {
-    pub id: i64,
-    pub created_at: String,
-    pub title: String,
-    pub notes: String,
-    pub amount_usd: f64,
-    pub start_date: NaiveDate,
-    pub deadline: NaiveDate,
-    pub spot_usd_pln: f64,
-    pub spot_usd_eur: f64,
-    pub target_rate: f64,
-    pub spread_pct: f64,
-    pub subjective_prob: Option<f64>,
-    pub model_prob: f64,
-    pub pln_account_id: i64,
-    pub usd_account_id: i64,
-    pub eur_account_id: i64,
-    #[sqlx(json)]
-    pub snapshot: serde_json::Value,
-    pub retrospective: bool,
-}
-
 const BET_COLUMNS: &str = "id, created_at, title, notes, amount_usd, start_date, deadline, spot_usd_pln, spot_usd_eur, \
     target_rate, spread_pct, subjective_prob, model_prob, pln_account_id, usd_account_id, eur_account_id, snapshot, retrospective";
-
-#[derive(Debug, Clone)]
-pub struct NewBet {
-    pub title: String,
-    pub notes: String,
-    pub amount_usd: f64,
-    pub start_date: NaiveDate,
-    pub deadline: NaiveDate,
-    pub spot_usd_pln: f64,
-    pub spot_usd_eur: f64,
-    pub target_rate: f64,
-    pub spread_pct: f64,
-    pub subjective_prob: Option<f64>,
-    pub model_prob: f64,
-    pub pln_account_id: i64,
-    pub usd_account_id: i64,
-    pub eur_account_id: i64,
-    pub snapshot: serde_json::Value,
-    pub retrospective: bool,
-}
 
 /// Takes a connection so callers can insert a bet and its conversions in one transaction.
 pub async fn insert_bet(conn: &mut SqliteConnection, b: &NewBet) -> Result<i64> {
@@ -346,16 +254,6 @@ pub async fn update_bet_notes(pool: &SqlitePool, id: i64, title: &str, notes: &s
 pub async fn delete_bet(pool: &SqlitePool, id: i64) -> AppResult<()> {
     let n = sqlx::query("DELETE FROM bets WHERE id = ?").bind(id).execute(pool).await?.rows_affected();
     if n == 0 { Err(AppError::NotFound("bet")) } else { Ok(()) }
-}
-
-#[derive(Debug, Clone, Serialize, FromRow)]
-pub struct ConversionRecord {
-    pub id: i64,
-    pub bet_id: i64,
-    pub date: NaiveDate,
-    pub usd_amount: f64,
-    pub rate: f64,
-    pub note: String,
 }
 
 pub async fn list_conversions(pool: &SqlitePool, bet_id: i64) -> Result<Vec<ConversionRecord>> {
